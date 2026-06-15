@@ -23,6 +23,13 @@ from voiceforensics.training.datasets import SpoofDataset
 _MODELS = {"rawnet2": ("waveform", RawNet2), "aasist": ("mel", AASISTLite)}
 
 
+def resolve_device(device: str = "auto") -> str:
+    """Resolve ``"auto"`` to ``"cuda"`` when a GPU is available, else ``"cpu"``."""
+    if device == "auto":
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    return device
+
+
 @dataclass
 class TrainResult:
     checkpoint_path: Path
@@ -48,7 +55,7 @@ def train_model(
     batch_size: int = 8,
     lr: float = 1e-3,
     val_frac: float = 0.3,
-    device: str = "cpu",
+    device: str = "auto",
     seed: int = 0,
     patience: int = 4,
 ) -> TrainResult:
@@ -56,6 +63,7 @@ def train_model(
         raise ValueError(f"unknown model '{model_name}', choose from {list(_MODELS)}")
     representation, model_cls = _MODELS[model_name]
 
+    device = resolve_device(device)
     torch.manual_seed(seed)
     full = SpoofDataset(dataset_dir, representation=representation)
     train_idx, val_idx = _split_indices(len(full), val_frac, seed)

@@ -184,7 +184,7 @@ def main(argv: list[str] | None = None) -> int:
     p_train.add_argument("--epochs", type=int, default=10)
     p_train.add_argument("--batch-size", type=int, default=8)
     p_train.add_argument("--lr", type=float, default=1e-3)
-    p_train.add_argument("--device", default="cpu")
+    p_train.add_argument("--device", default="auto", help="auto|cpu|cuda")
     p_train.set_defaults(func=_cmd_train)
 
     p_cal = sub.add_parser("calibrate", help="fit Platt scaling + ensemble weights")
