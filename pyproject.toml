@@ -24,12 +24,20 @@ dependencies = [
     "pydantic>=2.6",
     "pydantic-settings>=2.2",
     "httpx>=0.27",
+    "matplotlib>=3.8",
+    "pillow>=10.0",
+    "reportlab>=4.0",
+    "jinja2>=3.1",
+    "sqlalchemy>=2.0",
 ]
 
 [project.optional-dependencies]
 crepe = ["torchcrepe>=0.0.22"]
 whisper = ["transformers>=4.40"]
-dev = ["pytest>=8.0", "ruff>=0.4"]
+postgres = ["psycopg2-binary>=2.9"]
+s3 = ["boto3>=1.34"]
+celery = ["celery>=5.3", "redis>=5.0"]
+dev = ["pytest>=8.0", "ruff>=0.4", "fakeredis>=2.20"]
 
 [project.scripts]
 voiceforensics = "voiceforensics.__main__:main"

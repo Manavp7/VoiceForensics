@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
+
+import numpy as np
 
 from voiceforensics import __version__
 from voiceforensics.audio.io import decode_to_waveform
@@ -32,6 +35,16 @@ from voiceforensics.schemas import (
     DetectionResult,
     EngineProvenance,
 )
+
+
+@dataclass
+class AnalysisArtifacts:
+    """Dense intermediate arrays for rendering exhibits (not part of the JSON result)."""
+
+    sample_rate: int
+    waveform: np.ndarray
+    mel: np.ndarray
+    heatmap: np.ndarray
 
 
 class Engine:
@@ -57,6 +70,28 @@ class Engine:
         language_hint: str = "auto",
         chain_of_custody: bool = True,
     ) -> AnalysisResult:
+        """Analyze ``source`` and return the JSON-serialisable result."""
+        result, _ = self.analyze_with_artifacts(
+            source,
+            analysis_type=analysis_type,
+            language_hint=language_hint,
+            chain_of_custody=chain_of_custody,
+        )
+        return result
+
+    def analyze_with_artifacts(
+        self,
+        source: str | Path,
+        *,
+        analysis_type: AnalysisType | str = AnalysisType.FULL,
+        language_hint: str = "auto",
+        chain_of_custody: bool = True,
+    ) -> tuple[AnalysisResult, AnalysisArtifacts | None]:
+        """Like :meth:`analyze` but also returns dense arrays for rendering exhibits.
+
+        Artifacts are returned for ``full``/``legal`` analyses (which run
+        localization); ``quick`` returns ``None`` for artifacts.
+        """
         analysis_type = AnalysisType(analysis_type)
         started = time.perf_counter()
         analysis_id = "vf_" + uuid.uuid4().hex[:10]
@@ -94,11 +129,15 @@ class Engine:
         segments = []
         fingerprint = None
         naturalness = None
+        artifacts: AnalysisArtifacts | None = None
         if analysis_type in (AnalysisType.FULL, AnalysisType.LEGAL):
             loc = localize(self.detectors, y, sr, bundle.mel, self.settings)
             segments = loc.segments
             naturalness = loc.naturalness_score
             fingerprint = match(bundle, self.settings)
+            artifacts = AnalysisArtifacts(
+                sample_rate=sr, waveform=y, mel=bundle.mel, heatmap=loc.heatmap
+            )
 
         if analysis_type is AnalysisType.LEGAL and not chain_of_custody:
             chain_of_custody = True
@@ -127,7 +166,7 @@ class Engine:
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         report_url = None  # PDF report generation is Month-2 scope.
 
-        return AnalysisResult(
+        analysis_result = AnalysisResult(
             analysis_id=analysis_id,
             status="completed",
             analysis_type=analysis_type,
@@ -136,6 +175,7 @@ class Engine:
             provenance=provenance,
             report_url=report_url,
         )
+        return analysis_result, artifacts
 
 
 def analyze_file(source: str | Path, **kwargs) -> AnalysisResult:
