@@ -110,3 +110,4 @@ class AnalyzeRequest(BaseModel):
     language_hint: str = "auto"
     chain_of_custody: bool = True
     webhook_url: str | None = None
+    mode: str = "sync"  # "sync" (default, backward-compatible) | "async"

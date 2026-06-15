@@ -82,6 +82,26 @@ class Settings(BaseSettings):
     max_download_bytes: int = 50 * 1024 * 1024
     download_timeout_s: float = 20.0
 
+    # --- Persistence / storage / queue (productionization) ---------------------
+    database_url: str = "sqlite:///voiceforensics.db"
+    storage_backend: str = "local"  # "local" | "s3"
+    storage_dir: Path = Path("data/store")
+    s3_bucket: str | None = None
+    s3_endpoint_url: str | None = None
+    s3_region: str | None = None
+    queue_backend: str = "thread"  # "thread" | "celery"
+    celery_broker_url: str = "redis://localhost:6379/0"
+
+    # --- Security --------------------------------------------------------------
+    require_auth: bool = False  # dev default off; enable in production
+    rate_limit_per_minute: int = 60
+    allow_private_url_fetch: bool = False  # SSRF guard; never enable in prod
+
+    # --- Webhooks --------------------------------------------------------------
+    webhook_secret: str = ""
+    webhook_max_retries: int = 3
+    webhook_timeout_s: float = 10.0
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

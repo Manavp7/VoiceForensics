@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 
@@ -11,6 +12,25 @@ import pytest
 from tests import synth
 
 SR = synth.DEFAULT_SR
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _service_env(tmp_path_factory):
+    """Isolate persistence/storage/reports under a temp dir for the whole session."""
+    d = tmp_path_factory.mktemp("svc")
+    os.environ["VF_DATABASE_URL"] = f"sqlite:///{d / 'vf.db'}"
+    os.environ["VF_STORAGE_DIR"] = str(d / "store")
+    os.environ["VF_REPORTS_DIR"] = str(d / "reports")
+    from voiceforensics.config import get_settings
+
+    get_settings.cache_clear()
+    # Create the schema up front: TestClient(app) at import time does not trigger
+    # the FastAPI startup event, so tables must exist before the first request.
+    from voiceforensics.service.db import init_db
+
+    init_db()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture(scope="session")

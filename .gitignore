@@ -31,6 +31,12 @@ weights/
 tmp/
 out/
 reports/
+
+# Runtime persistence / storage
+*.db
+*.sqlite
+*.sqlite3
+data/store/
 samples/*.wav
 samples/*.mp3
 samples/*.ogg
