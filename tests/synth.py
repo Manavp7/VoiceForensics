@@ -25,6 +25,21 @@ import soundfile as sf
 DEFAULT_SR = 16_000
 
 
+def _syllabic_envelope(
+    n: int, sr: int, *, rate: float, jitter: float, rng: np.random.Generator
+) -> np.ndarray:
+    """A 0..1 amplitude envelope at syllable rate that dips to ~0 between syllables.
+
+    The periodic near-silent troughs give the engine's percentile-based SNR
+    estimator a real noise floor to find (as natural speech pauses would).
+    """
+    t = np.arange(n) / sr
+    phase_wobble = jitter * np.cumsum(rng.normal(0, 1.0, n)) / sr if jitter else 0.0
+    raw = 0.5 + 0.5 * np.sin(2 * np.pi * rate * t + 2 * np.pi * phase_wobble)
+    env = raw**2.0  # sharpen so troughs approach zero
+    return env
+
+
 def _formant_envelope(freqs: np.ndarray) -> np.ndarray:
     """A simple vowel-like spectral envelope (resonances near 700/1200/2600 Hz)."""
     env = np.zeros_like(freqs, dtype=np.float64)
@@ -56,13 +71,17 @@ def genuine_like(duration_s: float = 3.0, sr: int = DEFAULT_SR, *, seed: int = 0
         shimmer = 1.0 + 0.08 * np.sin(2 * np.pi * 4.0 * t + k) + rng.normal(0, 0.03, n)
         sig += amp * shimmer * np.sin(k * phase + rng.uniform(0, 2 * np.pi))
 
-    # Breath / aspiration noise (broadband) and a touch of room hiss.
-    breath = rng.normal(0, 1.0, n)
-    breath = _highpass(breath, sr, 2000.0) * 0.06
-    sig = sig + breath + rng.normal(0, 0.002, n)
+    # Syllabic envelope with natural rate jitter → periodic near-silent gaps.
+    env = _syllabic_envelope(n, sr, rate=3.2, jitter=0.4, rng=rng)
+    sig = sig * env
 
-    # Insert a couple of short pauses (natural speech is not continuous).
-    sig = _apply_pauses(sig, sr, rng, n_pauses=2)
+    # Breath / aspiration noise (broadband), gated by the same envelope.
+    breath = rng.normal(0, 1.0, n)
+    breath = _highpass(breath, sr, 2000.0) * 0.06 * env
+    sig = sig + breath
+
+    # Constant low room hiss sets the noise floor (well below voiced level).
+    sig = sig + rng.normal(0, 0.0015, n)
 
     return _normalise(sig).astype(np.float32)
 
@@ -87,6 +106,10 @@ def synthetic_like(duration_s: float = 3.0, sr: int = DEFAULT_SR, *, seed: int =
         amp = _formant_envelope(np.array([fk]))[0] / k
         # Fixed phase, fixed amplitude → over-regular structure.
         sig += amp * np.sin(k * phase)
+
+    # Over-regular syllabic envelope (fixed rate, no jitter).
+    env = _syllabic_envelope(n, sr, rate=3.0, jitter=0.0, rng=rng)
+    sig = sig * env
 
     sig = sig + rng.normal(0, 0.0005, n)  # near-silent noise floor
 
@@ -129,21 +152,6 @@ def _lowpass(x: np.ndarray, sr: int, cutoff: float) -> np.ndarray:
 
 def _highpass(x: np.ndarray, sr: int, cutoff: float) -> np.ndarray:
     return _biquad_butter(x, sr, cutoff, btype="high")
-
-
-def _apply_pauses(x: np.ndarray, sr: int, rng: np.random.Generator, n_pauses: int) -> np.ndarray:
-    out = x.copy()
-    pause_len = int(0.12 * sr)
-    for _ in range(n_pauses):
-        if len(out) <= pause_len * 3:
-            break
-        start = rng.integers(pause_len, len(out) - 2 * pause_len)
-        ramp = np.ones(pause_len)
-        ramp[: pause_len // 4] = np.linspace(1, 0, pause_len // 4)
-        ramp[-pause_len // 4 :] = np.linspace(0, 1, pause_len // 4)
-        ramp[pause_len // 4 : -pause_len // 4] = 0.0
-        out[start : start + pause_len] *= ramp
-    return out
 
 
 # --- writing / encoding -------------------------------------------------------
