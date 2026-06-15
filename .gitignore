@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+*.egg
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Models / large artifacts (weights are provided out-of-band)
+*.pth
+*.pt
+*.ckpt
+*.onnx
+weights/
+
+# Generated / temp audio + reports
+*.tmp
+tmp/
+out/
+reports/
+samples/*.wav
+samples/*.mp3
+samples/*.ogg
+samples/*.m4a
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
