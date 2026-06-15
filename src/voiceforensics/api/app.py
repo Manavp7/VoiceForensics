@@ -16,6 +16,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 from voiceforensics import __version__
 from voiceforensics.audio.io import AudioDecodeError
@@ -40,6 +41,15 @@ app = FastAPI(
     title="VoiceForensics API",
     version=__version__,
     description="Forensic-grade audio deepfake / voice-spoof detection (defensive security).",
+)
+
+# CORS so the dashboard (and other browser clients) can call the API. Tighten
+# `allow_origins` via configuration in production.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
