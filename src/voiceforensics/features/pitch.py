@@ -26,12 +26,36 @@ class PitchResult:
 
 
 def f0_contour(y: np.ndarray, sr: int, *, backend: str = "pyin") -> PitchResult:
+    """Estimate the F0 contour.
+
+    Backends: ``pyin`` (accurate, default), ``yin`` (fast, for per-window
+    localization), ``torchcrepe`` (optional, if installed).
+    """
     if backend == "torchcrepe":
         try:
             return _f0_torchcrepe(y, sr)
         except Exception:  # noqa: BLE001 - fall back if torchcrepe unavailable
             pass
+    if backend == "yin":
+        return _f0_yin(y, sr)
     return _f0_pyin(y, sr)
+
+
+def _f0_yin(y: np.ndarray, sr: int) -> PitchResult:
+    """Fast YIN F0. Treats frames as voiced when F0 falls in the expected band."""
+    import librosa
+
+    hop = max(1, int(sr * 0.010))
+    frame_length = max(hop * 2, 2048)
+    if len(y) < frame_length:
+        return PitchResult(f0=np.array([]), voiced_flag=np.array([]), times=np.array([]))
+    f0 = librosa.yin(
+        y.astype(np.float32), fmin=FMIN, fmax=FMAX, sr=sr, frame_length=frame_length, hop_length=hop
+    )
+    voiced = (f0 > FMIN) & (f0 < FMAX)
+    f0 = np.where(voiced, f0, np.nan)
+    times = librosa.times_like(f0, sr=sr, hop_length=hop)
+    return PitchResult(f0=f0, voiced_flag=voiced, times=times)
 
 
 def _f0_pyin(y: np.ndarray, sr: int) -> PitchResult:
