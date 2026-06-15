@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "description": "VoiceForensics generation-model fingerprint database (SEED / PLACEHOLDER). The centroids below are heuristic priors, NOT measurements from a labelled corpus. Replace them with centroids fit on real ElevenLabs/XTTS/RVC/etc. samples before relying on source attribution in production. See scripts/DATASETS.md.",
+  "feature_keys": [
+    "bandlimit_ratio",
+    "hf_energy_ratio_4k",
+    "jitter_local",
+    "f0_cv",
+    "formant_transition_rate",
+    "phase_regularity",
+    "spectral_rolloff_hz"
+  ],
+  "standardization": {
+    "bandlimit_ratio": { "mean": 0.7, "std": 0.2 },
+    "hf_energy_ratio_4k": { "mean": 0.02, "std": 0.02 },
+    "jitter_local": { "mean": 0.002, "std": 0.0015 },
+    "f0_cv": { "mean": 0.01, "std": 0.01 },
+    "formant_transition_rate": { "mean": 100.0, "std": 50.0 },
+    "phase_regularity": { "mean": 0.35, "std": 0.1 },
+    "spectral_rolloff_hz": { "mean": 2500.0, "std": 1500.0 }
+  },
+  "templates": [
+    {
+      "source_name": "GENUINE",
+      "version": "human",
+      "notes": "Placeholder centroid for authentic human speech (full-band, natural jitter).",
+      "centroid": {
+        "bandlimit_ratio": 0.95,
+        "hf_energy_ratio_4k": 0.045,
+        "jitter_local": 0.0035,
+        "f0_cv": 0.02,
+        "formant_transition_rate": 160.0,
+        "phase_regularity": 0.35,
+        "spectral_rolloff_hz": 3600.0
+      }
+    },
+    {
+      "source_name": "ElevenLabs_v3",
+      "version": "v3",
+      "notes": "Placeholder: high-quality near-full-band TTS with very low jitter and smooth formants.",
+      "centroid": {
+        "bandlimit_ratio": 0.9,
+        "hf_energy_ratio_4k": 0.03,
+        "jitter_local": 0.0003,
+        "f0_cv": 0.0015,
+        "formant_transition_rate": 75.0,
+        "phase_regularity": 0.36,
+        "spectral_rolloff_hz": 3000.0
+      }
+    },
+    {
+      "source_name": "XTTS-v2",
+      "version": "v2",
+      "notes": "Placeholder: Coqui XTTS-v2, mildly band-limited with low pitch variation.",
+      "centroid": {
+        "bandlimit_ratio": 0.72,
+        "hf_energy_ratio_4k": 0.012,
+        "jitter_local": 0.0006,
+        "f0_cv": 0.003,
+        "formant_transition_rate": 80.0,
+        "phase_regularity": 0.36,
+        "spectral_rolloff_hz": 2200.0
+      }
+    },
+    {
+      "source_name": "RVC",
+      "version": "v2",
+      "notes": "Placeholder: retrieval-based voice conversion; pitch-shift artefacts in the F0 contour.",
+      "centroid": {
+        "bandlimit_ratio": 0.82,
+        "hf_energy_ratio_4k": 0.02,
+        "jitter_local": 0.0015,
+        "f0_cv": 0.008,
+        "formant_transition_rate": 95.0,
+        "phase_regularity": 0.35,
+        "spectral_rolloff_hz": 2600.0
+      }
+    },
+    {
+      "source_name": "VALL-E",
+      "version": "v1",
+      "notes": "Placeholder: neural-codec TTS; characteristic band-limiting / codec artefacts.",
+      "centroid": {
+        "bandlimit_ratio": 0.5,
+        "hf_energy_ratio_4k": 0.002,
+        "jitter_local": 0.0002,
+        "f0_cv": 0.001,
+        "formant_transition_rate": 60.0,
+        "phase_regularity": 0.355,
+        "spectral_rolloff_hz": 1400.0
+      }
+    },
+    {
+      "source_name": "Coqui_TTS",
+      "version": "tacotron2",
+      "notes": "Placeholder: older concatenative/Tacotron-style TTS; reduced bandwidth.",
+      "centroid": {
+        "bandlimit_ratio": 0.6,
+        "hf_energy_ratio_4k": 0.005,
+        "jitter_local": 0.0004,
+        "f0_cv": 0.0015,
+        "formant_transition_rate": 65.0,
+        "phase_regularity": 0.355,
+        "spectral_rolloff_hz": 1700.0
+      }
+    }
+  ]
+}
