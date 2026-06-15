@@ -99,8 +99,12 @@ print(result.provenance.baseline_only)   # True until neural weights are configu
 ### HTTP API
 
 - `GET /health` → engine status + active detectors.
-- `POST /v1/analyze` → JSON body with `audio_url` **or** `audio_base64`.
-- `POST /v1/analyze/upload` → multipart file upload.
+- `POST /v1/analyze` → JSON body with `audio_url` **or** `audio_base64`
+  (`mode: "sync"` default, or `"async"` → returns a `job_id`).
+- `POST /v1/analyze/upload` → multipart file upload (also supports `mode`).
+- `GET /v1/jobs/{job_id}` → async job status + result.
+- `GET /v1/reports/{analysis_id}.pdf` → download a generated legal report.
+- `POST /v1/visualize/upload` (`kind=mel|heatmap|waveform`) → exhibit PNG.
 
 ```bash
 curl -s -X POST localhost:8000/v1/analyze/upload \
@@ -150,11 +154,77 @@ to obtain training data.
 
 ---
 
+## Legal Chain-of-Custody PDF report
+
+`analysis_type="legal"` produces a court-oriented PDF (SHA-256 + metadata, findings
+with plain-language interpretation, methodology for non-technical judges,
+spectrogram/heatmap/waveform exhibits, a pre-filled expert-witness statement, and an
+explicit limitations section). The content hash is embedded in the PDF metadata.
+
+```bash
+python -m voiceforensics report call.wav -o reports/
+```
+
+## Science tools
+
+```bash
+# Evaluate on a labelled dataset (real/ + fake/ subdirs) → EER, AUC, accuracy, min t-DCF
+python -m voiceforensics benchmark path/to/dataset
+
+# Build a measured fingerprint DB from labelled generator samples (one subdir per source)
+python -m voiceforensics build-fingerprints samples/ -o signatures.json
+```
+
+Advanced features now include LTAS (spectral tilt/flatness), the modulation spectrum,
+CQCC-style cepstral statistics, and breathing/pause statistics.
+
+## Training the neural backends
+
+The RawNet2 / AASIST architectures are weight-gated; train them and point the engine
+at the checkpoints (real training needs a GPU — see `scripts/DATASETS.md`).
+
+```bash
+python -m voiceforensics train  path/to/dataset --model aasist -o weights/aasist.pth
+python -m voiceforensics calibrate path/to/dataset -o calibration.env   # fits Platt + weights
+export VF_AASIST_WEIGHTS_PATH=$(pwd)/weights/aasist.pth                  # baseline_only → false
+```
+
+## Productionized service
+
+- **Persistence**: SQLAlchemy (`VF_DATABASE_URL`, SQLite default, Postgres optional).
+- **Storage**: local (default) or S3/R2 (`VF_STORAGE_BACKEND=s3`, `[s3]` extra).
+- **Async queue**: in-process thread pool (default) or Celery/Redis (`[celery]` extra).
+- **Webhooks**: signed (HMAC) delivery with retries in async mode.
+- **Security**: API-key auth (`VF_REQUIRE_AUTH=true`), per-key rate limiting, and an
+  SSRF guard on `audio_url` fetches.
+
+```python
+from voiceforensics.service.db import create_api_key
+print(create_api_key("my-client"))   # → vfk_...
+```
+
+## Dashboard (Next.js)
+
+```bash
+cd frontend
+npm install
+NEXT_PUBLIC_API_BASE=http://localhost:8000 npm run dev   # http://localhost:3000
+```
+
+## Docker
+
+```bash
+docker build -t voiceforensics .
+docker run -p 8000:8000 voiceforensics
+```
+
 ## Development
 
 ```bash
 ruff check .
 pytest -q          # offline, deterministic (synthesises its own audio)
+cd frontend && npm run lint && npm run build
 ```
 
-All tests run on CPU without any network access or dataset downloads.
+All Python tests run on CPU without any network access or dataset downloads. CI
+(`.github/workflows/ci.yml`) runs ruff + pytest on Python 3.11 and 3.12.

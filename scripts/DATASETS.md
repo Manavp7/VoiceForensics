@@ -27,19 +27,31 @@ documents the recommended corpora and the training/fingerprinting handoff.
 3. Hold out generators/speakers for a clean test split; never leak speakers across
    train/test.
 
-## Training the backends (Month-2 work)
+## Training the backends
 
-- Pretrain RawNet2 / AASIST on ASVspoof (broad coverage), then fine-tune on the
-  Indian corpus (domain adaptation).
-- Save `state_dict` checkpoints compatible with the architectures in
-  `src/voiceforensics/models/{rawnet2,aasist}.py`.
-- Point the engine at them:
-  ```bash
-  export VF_RAWNET2_WEIGHTS_PATH=/weights/rawnet2.pth
-  export VF_AASIST_WEIGHTS_PATH=/weights/aasist.pth
-  ```
-- Fit Platt-scaling parameters (`VF_PLATT_A`, `VF_PLATT_B`) and the ensemble
-  weights on a labelled validation split.
+The training harness is built in (`voiceforensics.training`). Organise data as a
+folder with `real/` and `fake/` subdirectories, then:
+
+```bash
+# Train a backend (CPU works for smoke tests; use a GPU box for real runs).
+python -m voiceforensics train  /data/asvspoof_la --model rawnet2 -o weights/rawnet2.pth
+python -m voiceforensics train  /data/asvspoof_la --model aasist  -o weights/aasist.pth
+
+# Fit Platt scaling + ensemble weights on the same/held-out split.
+python -m voiceforensics calibrate /data/val -o calibration.env
+
+# Point the engine at the trained weights (baseline_only becomes false).
+export VF_RAWNET2_WEIGHTS_PATH=$(pwd)/weights/rawnet2.pth
+export VF_AASIST_WEIGHTS_PATH=$(pwd)/weights/aasist.pth
+source calibration.env   # sets VF_PLATT_A / VF_PLATT_B / VF_ENSEMBLE_WEIGHTS
+```
+
+Checkpoints are plain `state_dict`s matching the architectures in
+`src/voiceforensics/models/{rawnet2,aasist}.py`. An ASVspoof protocol parser is
+available via `voiceforensics.training.datasets.asvspoof_protocol`.
+
+Recommended recipe: pretrain on ASVspoof (broad coverage), then fine-tune on the
+Indian corpus (domain adaptation), and re-run `calibrate`.
 
 ## Refining the fingerprint database
 

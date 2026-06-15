@@ -27,12 +27,32 @@ This is a legal-grade tool, so the code must never overstate confidence.
 - Tests must be **offline & deterministic** (synthesize audio; never download datasets).
 
 ## Layout
-- `src/voiceforensics/` — package (`audio/`, `features/`, `models/`, `ensemble/`,
-  `localization/`, `fingerprint/`, `api/`, `pipeline.py`, `schemas.py`, `config.py`,
-  `hashing.py`).
-- `tests/` — pytest, synthetic-audio fixtures in `conftest.py`.
-- `scripts/` — `make_sample_audio.py`, `DATASETS.md`.
-- `data/signatures/signatures.json` — seed fingerprint DB.
+- `src/voiceforensics/` — package:
+  - core: `audio/`, `features/`, `models/`, `ensemble/`, `localization/`,
+    `fingerprint/`, `pipeline.py`, `schemas.py`, `config.py`, `hashing.py`.
+  - `viz/` — headless PNG exhibit rendering (matplotlib Agg).
+  - `reporting/` — ReportLab legal PDF (`templates.py` wording reviewed by counsel).
+  - `metrics.py` — EER / AUC / min t-DCF (shared by benchmark + training).
+  - `tools/` — `benchmark.py`, `build_fingerprints.py`.
+  - `training/` — `datasets.py`, `train.py`, `calibrate.py` (GPU off-box).
+  - `service/` — `db.py`, `storage.py`, `queue.py`, `jobs.py`, `webhooks.py`,
+    `security.py` (auth + rate limit + SSRF guard).
+  - `api/app.py` — FastAPI (sync + async jobs, reports, visualize, CORS).
+  - `logging_config.py` — JSON structured logging + request id.
+- `frontend/` — Next.js 14 dashboard (TypeScript + Tailwind). Gate: `npm run build`.
+- `tests/` — pytest, synthetic-audio fixtures in `conftest.py` (a session-autouse
+  fixture isolates DB/storage under a temp dir).
+- `scripts/` — `make_sample_audio.py`, `DATASETS.md`. `data/signatures/signatures.json`
+  — seed fingerprint DB (placeholder centroids).
+
+## Honesty note for reports
+The PDF report and dashboard must surface `baseline_only` and the limitations text.
+Never remove the "decision-support, not proof" framing or the placeholder-DB caveat.
+
+## Default backends vs. optional adapters
+The tested path is: heuristic detector, SQLite, local storage, thread queue. Celery/
+Redis, Postgres, S3/R2, Docker builds, and GPU training are wired + documented but not
+exercised in this sandbox (no services/GPU). Keep defaults working and offline.
 
 ## Dev workflow
 - Install: `pip install -e ".[dev]"`
