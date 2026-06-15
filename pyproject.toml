@@ -42,6 +42,7 @@ voiceforensics = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-q"
 filterwarnings = ["ignore::DeprecationWarning", "ignore::UserWarning"]
 
