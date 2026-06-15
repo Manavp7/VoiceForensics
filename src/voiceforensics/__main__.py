@@ -80,6 +80,62 @@ def _cmd_build_fingerprints(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_train(args: argparse.Namespace) -> int:
+    from voiceforensics.training.train import train_model
+
+    result = train_model(
+        args.dataset,
+        args.model,
+        args.out,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        lr=args.lr,
+        device=args.device,
+    )
+    print(f"checkpoint: {result.checkpoint_path}")
+    print(f"best val EER: {result.best_val_eer:.4f}  (epochs={result.epochs_run}, "
+          f"train={result.train_size}, val={result.val_size})")
+    return 0
+
+
+def _cmd_calibrate(args: argparse.Namespace) -> int:
+    from voiceforensics.pipeline import Engine
+    from voiceforensics.tools.benchmark import _iter_audio
+    from voiceforensics.training.calibrate import (
+        as_env_snippet,
+        fit_ensemble_weights,
+        fit_platt,
+        improvement,
+    )
+
+    engine = Engine()
+    fused: list[float] = []
+    labels: list[int] = []
+    det_probs: dict[str, list[float]] = {}
+    from pathlib import Path
+
+    for label, sub in ((0, "real"), (1, "fake")):
+        for path in _iter_audio(Path(args.dataset) / sub):
+            result = engine.analyze(path, analysis_type="quick")
+            fused.append(result.result.deepfake_probability)
+            labels.append(label)
+            for s in result.provenance.detector_scores:
+                if s.available:
+                    det_probs.setdefault(s.name, []).append(s.prob_fake)
+
+    a, b = fit_platt(fused, labels)
+    weights = fit_ensemble_weights(det_probs, labels) if len(det_probs) > 1 else None
+    snippet = as_env_snippet(a, b, weights)
+    print(snippet)
+    print(f"# log-loss improvement vs. uncalibrated: {improvement(a, b, fused, labels):+.4f}",
+          file=sys.stderr)
+    if args.out:
+        with open(args.out, "w") as fh:
+            fh.write(snippet + "\n")
+        print(f"# written: {args.out}", file=sys.stderr)
+    return 0
+
+
 def _cmd_info(_: argparse.Namespace) -> int:
     from voiceforensics import __version__
     from voiceforensics.pipeline import Engine
@@ -120,6 +176,21 @@ def main(argv: list[str] | None = None) -> int:
     p_fp.add_argument("samples", help="dir with one subdir per generator (label)")
     p_fp.add_argument("-o", "--out", default="signatures.json", help="output JSON path")
     p_fp.set_defaults(func=_cmd_build_fingerprints)
+
+    p_train = sub.add_parser("train", help="train a neural backend on a labelled dataset")
+    p_train.add_argument("dataset", help="dataset dir containing real/ and fake/ subdirs")
+    p_train.add_argument("--model", choices=["rawnet2", "aasist"], default="rawnet2")
+    p_train.add_argument("-o", "--out", default="weights.pth", help="checkpoint output path")
+    p_train.add_argument("--epochs", type=int, default=10)
+    p_train.add_argument("--batch-size", type=int, default=8)
+    p_train.add_argument("--lr", type=float, default=1e-3)
+    p_train.add_argument("--device", default="cpu")
+    p_train.set_defaults(func=_cmd_train)
+
+    p_cal = sub.add_parser("calibrate", help="fit Platt scaling + ensemble weights")
+    p_cal.add_argument("dataset", help="dataset dir containing real/ and fake/ subdirs")
+    p_cal.add_argument("-o", "--out", default=None, help="write .env snippet to this path")
+    p_cal.set_defaults(func=_cmd_calibrate)
 
     p_info = sub.add_parser("info", help="show engine / detector status")
     p_info.set_defaults(func=_cmd_info)
