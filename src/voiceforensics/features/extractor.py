@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from voiceforensics.features.advanced import advanced_features
 from voiceforensics.features.codec import codec_features
 from voiceforensics.features.formants import formant_stats, formant_tracks
 from voiceforensics.features.phase import phase_features
@@ -53,6 +54,17 @@ SCALAR_KEYS: list[str] = [
     "spectral_rolloff_hz",
     "bandlimit_ratio",
     "mfcc_var_mean",
+    # Advanced features (LTAS / modulation / CQCC / breathing).
+    "ltas_tilt",
+    "ltas_centroid_hz",
+    "ltas_flatness",
+    "mod_4_8hz_ratio",
+    "mod_peak_hz",
+    "cqcc_var_mean",
+    "cqt_high_low_ratio",
+    "pause_rate_hz",
+    "voiced_run_rate_hz",
+    "mean_pause_ms",
 ]
 
 
@@ -67,6 +79,7 @@ def extract(y: np.ndarray, sr: int, *, pitch_backend: str = "pyin") -> FeatureBu
     scalars.update(formant_stats(formants))
     scalars.update(phase_features(y, sr))
     scalars.update(codec_features(y, sr))
+    scalars.update(advanced_features(y, sr))
     # Temporal variability of MFCCs (synthetic speech tends to be flatter).
     scalars["mfcc_var_mean"] = float(np.mean(np.var(mfcc[: mfcc.shape[0] // 3], axis=1)))
 

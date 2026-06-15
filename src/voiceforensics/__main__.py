@@ -51,6 +51,35 @@ def _cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_benchmark(args: argparse.Namespace) -> int:
+    import json
+
+    from voiceforensics.tools.benchmark import run_benchmark
+
+    result = run_benchmark(args.dataset)
+    print(
+        json.dumps(
+            {
+                "n_scored": result.n_scored,
+                "metrics": result.metrics,
+                "min_tdcf": result.min_tdcf,
+                "threshold_sweep": result.threshold_sweep,
+                "skipped": result.skipped,
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+def _cmd_build_fingerprints(args: argparse.Namespace) -> int:
+    from voiceforensics.tools.build_fingerprints import write_signature_db
+
+    out = write_signature_db(args.samples, args.out)
+    print(f"signature DB written: {out}")
+    return 0
+
+
 def _cmd_info(_: argparse.Namespace) -> int:
     from voiceforensics import __version__
     from voiceforensics.pipeline import Engine
@@ -82,6 +111,15 @@ def main(argv: list[str] | None = None) -> int:
     p_report.add_argument("-o", "--out-dir", default=None, help="output directory for the PDF")
     p_report.add_argument("--language", default="auto", help="language hint (advisory)")
     p_report.set_defaults(func=_cmd_report)
+
+    p_bench = sub.add_parser("benchmark", help="evaluate on a labelled real/ + fake/ dataset")
+    p_bench.add_argument("dataset", help="dataset dir containing real/ and fake/ subdirs")
+    p_bench.set_defaults(func=_cmd_benchmark)
+
+    p_fp = sub.add_parser("build-fingerprints", help="build a signature DB from labelled samples")
+    p_fp.add_argument("samples", help="dir with one subdir per generator (label)")
+    p_fp.add_argument("-o", "--out", default="signatures.json", help="output JSON path")
+    p_fp.set_defaults(func=_cmd_build_fingerprints)
 
     p_info = sub.add_parser("info", help="show engine / detector status")
     p_info.set_defaults(func=_cmd_info)
