@@ -62,6 +62,31 @@ class Engine:
     def baseline_only(self) -> bool:
         return self.active_detector_names == ["heuristic"]
 
+    def analyze_to_report(
+        self,
+        source: str | Path,
+        *,
+        out_dir: str | Path | None = None,
+        language_hint: str = "auto",
+    ) -> tuple[AnalysisResult, Path]:
+        """Run a legal-grade analysis and render a PDF report.
+
+        Returns ``(result, pdf_path)`` with ``result.report_url`` populated.
+        """
+        from voiceforensics.reporting.pdf import generate_report
+
+        result, artifacts = self.analyze_with_artifacts(
+            source,
+            analysis_type=AnalysisType.LEGAL,
+            language_hint=language_hint,
+            chain_of_custody=True,
+        )
+        out_dir = Path(out_dir) if out_dir is not None else Path(self.settings.reports_dir)
+        pdf_path = out_dir / f"{result.analysis_id}.pdf"
+        generate_report(result, artifacts, pdf_path)
+        result.report_url = f"{self.settings.report_base_url}/{result.analysis_id}.pdf"
+        return result, pdf_path
+
     def analyze(
         self,
         source: str | Path,

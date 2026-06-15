@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     signature_db_path: Path = _DEFAULT_SIGNATURE_DB
     fingerprint_max_distance: float = 6.0
 
+    # --- Reporting -------------------------------------------------------------
+    reports_dir: Path = Path("reports")
+    report_base_url: str = "/v1/reports"
+
     # --- API -------------------------------------------------------------------
     max_download_bytes: int = 50 * 1024 * 1024
     download_timeout_s: float = 20.0
