@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import binascii
 import tempfile
+import time
 import uuid
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from voiceforensics import __version__
 from voiceforensics.audio.io import AudioDecodeError
 from voiceforensics.audio.preprocess import QualityGateError
 from voiceforensics.config import get_settings
+from voiceforensics.logging_config import configure_logging, get_logger, request_id_var
 from voiceforensics.pipeline import Engine
 from voiceforensics.schemas import AnalysisType, AnalyzeRequest
 from voiceforensics.service.db import Job, UsageRecord, get_sessionmaker, init_db
@@ -31,11 +33,34 @@ from voiceforensics.service.security import (
     validate_api_key,
 )
 
+configure_logging()
+_log = get_logger("voiceforensics.api")
+
 app = FastAPI(
     title="VoiceForensics API",
     version=__version__,
     description="Forensic-grade audio deepfake / voice-spoof detection (defensive security).",
 )
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    rid = request.headers.get("x-request-id") or "req_" + uuid.uuid4().hex[:12]
+    token = request_id_var.set(rid)
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    finally:
+        request_id_var.reset(token)
+    elapsed_ms = int((time.perf_counter() - start) * 1000)
+    response.headers["X-Request-ID"] = rid
+    _log.info(
+        "request",
+        extra={"extra_fields": {
+            "method": request.method, "path": request.url.path, "ms": elapsed_ms,
+        }},
+    )
+    return response
 
 _engine: Engine | None = None
 _queue = None
@@ -264,3 +289,43 @@ def get_report(analysis_id: str, api_key=Depends(auth_dependency)) -> Response:
     if not storage.exists(key):
         raise HTTPException(status_code=404, detail="report not found")
     return Response(content=storage.get(key), media_type="application/pdf")
+
+
+@app.post("/v1/visualize/upload")
+def visualize_upload(
+    file: UploadFile = File(...),
+    kind: str = Form("mel"),
+    api_key=Depends(rate_limit_dependency),
+) -> Response:
+    """Render a forensic exhibit PNG (``kind`` = mel | heatmap | waveform) for audio."""
+    if kind not in {"mel", "heatmap", "waveform"}:
+        raise HTTPException(status_code=400, detail="kind must be mel|heatmap|waveform")
+
+    data = file.file.read()
+    suffix = Path(file.filename or "audio").suffix or ".audio"
+    engine = get_engine()
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
+        tmp.write(data)
+        tmp.flush()
+        try:
+            result, artifacts = engine.analyze_with_artifacts(tmp.name, analysis_type="full")
+        except QualityGateError as exc:
+            raise HTTPException(status_code=422, detail=f"quality gate failed: {exc}") from exc
+        except AudioDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"could not decode audio: {exc}") from exc
+
+    if artifacts is None:
+        raise HTTPException(status_code=500, detail="no artifacts produced")
+
+    from voiceforensics.viz.render import heatmap_png, mel_spectrogram_png, waveform_png
+
+    with tempfile.TemporaryDirectory() as d:
+        out = Path(d) / "exhibit.png"
+        if kind == "mel":
+            mel_spectrogram_png(artifacts.mel, artifacts.sample_rate, out)
+        elif kind == "heatmap":
+            heatmap_png(artifacts.heatmap, result.result.segments, out)
+        else:
+            waveform_png(artifacts.waveform, artifacts.sample_rate, result.result.segments, out)
+        png = out.read_bytes()
+    return Response(content=png, media_type="image/png")
